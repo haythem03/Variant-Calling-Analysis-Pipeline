@@ -67,3 +67,9 @@ runApp('path/to/your/app.R')
 ```
 
 The application should open in your default web browser.
+
+**Usage**
+
+1. **Upload FASTQ Files**: Select FASTQ files to analyze using the 'Upload' tab. You will be able to upload files for use with FastQC, Trimmomatic, and BWA.
+
+2. **Run FastQC**: After uploading the FASTQ files, navigate to the 'FASTQC' tab to perform quality control on the uploaded data. The app will generate a FastQC report that can be viewed directly within the interface.

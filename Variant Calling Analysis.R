@@ -161,3 +161,89 @@ ui <- dashboardPage(
     )
   )
 )
+
+server <- function(input, output, session) {
+  
+  observeEvent(input$fastqc, {
+    req(input$fastq)
+    
+    # directory for fastqc results
+    output_dir <- normalizePath("fastqc_results", mustWork = FALSE)
+    dir.create(output_dir, showWarnings = FALSE)
+    
+    base_name <- tools::file_path_sans_ext(basename(input$fastq$name))
+    
+    # paths for split files in the output directory
+    forward_reads <- file.path(output_dir, paste0(base_name, "_forward.fastq"))
+    reverse_reads <- file.path(output_dir, paste0(base_name, "_reverse.fastq"))
+    
+    # Split the fastq file 
+    tryCatch({
+      system2("seqtk", 
+              args = c("seq", "-1", shQuote(input$fastq$datapath)), 
+              stdout = forward_reads)
+      system2("seqtk", 
+              args = c("seq", "-2", shQuote(input$fastq$datapath)), 
+              stdout = reverse_reads)
+    }, error = function(e) {
+      showNotification("Error splitting FASTQ file. Please check if seqtk is installed.", type = "error")
+      return()
+    })
+    
+    # Verify split files exist
+    if (!file.exists(forward_reads) || !file.exists(reverse_reads)) {
+      showNotification("Error: Split files were not created successfully", type = "error")
+      return()
+    }
+    
+    # Run FastQC on both split files
+    system2("fastqc", args = c(shQuote(forward_reads), "-o", shQuote(output_dir)))
+    system2("fastqc", args = c(shQuote(reverse_reads), "-o", shQuote(output_dir)))
+    
+   
+    fastqc_html_report_forward <- list.files(output_dir, 
+                                             pattern = paste0(base_name, "_forward_fastqc.html$"), 
+                                             full.names = TRUE)
+    fastqc_html_report_reverse <- list.files(output_dir, 
+                                             pattern = paste0(base_name, "_reverse_fastqc.html$"), 
+                                             full.names = TRUE)
+    
+    if (length(fastqc_html_report_forward) > 0 && length(fastqc_html_report_reverse) > 0) {
+      
+      addResourcePath("fastqc_results", output_dir)
+      
+      output$fastqc_report <- renderUI({
+        tagList(
+          h4("Forward Reads FastQC Report"),
+          tags$iframe(
+            src = paste0("fastqc_results/", basename(fastqc_html_report_forward)), 
+            width = "100%", 
+            height = "600px", 
+            frameborder = 0
+          ),
+          tags$a(
+            href = paste0("fastqc_results/", basename(fastqc_html_report_forward)),
+            "Download/View Full Forward FastQC Report", 
+            target = "_blank", 
+            style = "display:block; margin-top:10px; font-size:16px; color:#6f42c1;"
+          ),
+          
+          h4("Reverse Reads FastQC Report"),
+          tags$iframe(
+            src = paste0("fastqc_results/", basename(fastqc_html_report_reverse)), 
+            width = "100%", 
+            height = "600px", 
+            frameborder = 0
+          ),
+          tags$a(
+            href = paste0("fastqc_results/", basename(fastqc_html_report_reverse)),
+            "Download/View Full Reverse FastQC Report", 
+            target = "_blank", 
+            style = "display:block; margin-top:10px; font-size:16px; color:#6f42c1;"
+          )
+        )
+      })
+    } else {
+      output$fastqc_report <- renderText("FastQC reports could not be generated. Please check your input file.")
+    }
+  })
